@@ -2,6 +2,8 @@ import streamlit as st
 from datetime import date
 from streamlit.runtime.scriptrunner import RerunException
 import pandas as pd
+import io
+
 
 st.set_page_config(page_title="Termo de Declaração", layout="centered")
 st.title("📄 Termo de Declaração")
@@ -160,37 +162,19 @@ with abas[2]:
     if "registro_salvo" not in st.session_state:
         st.session_state["registro_salvo"] = False
 
-    # Botão SALVAR REGISTRO
-    if st.button("💾 Salvar Registro no Banco de Dados"):
-        data_formatada = str(data_termo)
+    import io
 
-        conexao = sqlite3.connect("banco_termos.db")
-        cursor = conexao.cursor()
+if st.session_state["registro_salvo"]:
+    st.markdown("---")
+    st.subheader("📄 Gerar Documento")
 
-        cursor.execute("""
-            INSERT INTO termos (nome, cpf, data, cidade, declaracao)
-            VALUES (?, ?, ?, ?, ?)
-        """, (Nome, cpf, data_formatada, cidade, declaracao))
-
-        conexao.commit()
-        conexao.close()
-
-        st.success("✅ Dados salvos no banco com sucesso.")
-        st.session_state["registro_salvo"] = True  # libera botão de gerar termo
-
-    # Exibir botão de gerar termo apenas após salvar
-    if st.session_state["registro_salvo"]:
-        st.markdown("---")
-        st.subheader("📄 Gerar Documento")
-
-        if st.button("📄 Gerar Termo de Declaração"):
-            # Caminhos
-            caminho_modelo = "Documentos/termo_de_declaracao.docx"
-            nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
-            caminho_saida = f"documentos/{nome_arquivo}"
-
-            shutil.copy(caminho_modelo, caminho_saida)
-            doc = Document(caminho_saida)
+    if st.button("📄 Gerar Termo de Declaração"):
+        # Abre modelo diretamente
+        caminho_modelo = "Documentos/termo_de_declaracao.docx"
+        if not os.path.exists(caminho_modelo):
+            st.error(f"❌ Arquivo de modelo não encontrado: {caminho_modelo}")
+        else:
+            doc = Document(caminho_modelo)
 
             hora_atendimento = datetime.now().strftime("%H:%M")
             data_formatada = data_termo.strftime("%d/%m/%Y")
@@ -202,8 +186,17 @@ with abas[2]:
                 p.text = p.text.replace("<<qualificacao>>", qualificacao)
                 p.text = p.text.replace("<<declaracao>>", declaracao)
 
-            doc.save(caminho_saida)
-            st.success("✅ Documento gerado com sucesso.")
+            # Salva o documento em memória
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
 
-            with open(caminho_saida, "rb") as file:
-                st.download_button("📥 Baixar Termo", file, file_name=nome_arquivo)
+            nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
+
+            st.success("✅ Documento gerado com sucesso.")
+            st.download_button(
+                label="📥 Baixar Termo",
+                data=buffer,
+                file_name=nome_arquivo,
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
