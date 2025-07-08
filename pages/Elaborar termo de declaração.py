@@ -147,7 +147,7 @@ with abas[2]:
     from docx import Document
     from datetime import datetime
     import os
-    import shutil
+    import io
 
     st.header("Declaração")
 
@@ -158,45 +158,72 @@ with abas[2]:
         value=f"Assistido(a) declara que..."
     )
 
-    # Estado da sessão para controlar exibição do botão
+    # Estado da sessão para controlar exibição do botão de gerar termo
     if "registro_salvo" not in st.session_state:
         st.session_state["registro_salvo"] = False
 
-    import io
+    # Botão SALVAR REGISTRO no banco de dados
+    if st.button("💾 Salvar Registro no Banco de Dados"):
+        data_formatada = str(data_termo)
 
-if st.session_state["registro_salvo"]:
-    st.markdown("---")
-    st.subheader("📄 Gerar Documento")
+        conexao = sqlite3.connect("banco_termos.db")
+        cursor = conexao.cursor()
 
-    if st.button("📄 Gerar Termo de Declaração"):
-        # Abre modelo diretamente
-        caminho_modelo = "Documentos/termo_de_declaracao.docx"
-        if not os.path.exists(caminho_modelo):
-            st.error(f"❌ Arquivo de modelo não encontrado: {caminho_modelo}")
-        else:
-            doc = Document(caminho_modelo)
-
-            hora_atendimento = datetime.now().strftime("%H:%M")
-            data_formatada = data_termo.strftime("%d/%m/%Y")
-            qualificacao = f"{sexo}, CPF {cpf}, residente na {rua}, nº {numero}, bairro {bairro}, cidade de {cidade_assistido}, telefone {telefone}, nascido(a) em {datanascimento.strftime('%d/%m/%Y')}, do grupo étnico {grupo_etinico}"
-
-            for p in doc.paragraphs:
-                p.text = p.text.replace("<<nomeassistido>>", Nome)
-                p.text = p.text.replace("<<horaatendimento>>", data_formatada + " às " + hora_atendimento)
-                p.text = p.text.replace("<<qualificacao>>", qualificacao)
-                p.text = p.text.replace("<<declaracao>>", declaracao)
-
-            # Salva o documento em memória
-            buffer = io.BytesIO()
-            doc.save(buffer)
-            buffer.seek(0)
-
-            nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
-
-            st.success("✅ Documento gerado com sucesso.")
-            st.download_button(
-                label="📥 Baixar Termo",
-                data=buffer,
-                file_name=nome_arquivo,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        # Cria a tabela se ainda não existir
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS termos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT,
+                cpf TEXT,
+                data TEXT,
+                cidade TEXT,
+                declaracao TEXT
             )
+        """)
+
+        cursor.execute("""
+            INSERT INTO termos (nome, cpf, data, cidade, declaracao)
+            VALUES (?, ?, ?, ?, ?)
+        """, (Nome, cpf, data_formatada, cidade, declaracao))
+
+        conexao.commit()
+        conexao.close()
+
+        st.success("✅ Dados salvos no banco com sucesso.")
+        st.session_state["registro_salvo"] = True  # ativa botão de gerar termo
+
+    # Botão de gerar documento só aparece após salvar no banco
+    if st.session_state["registro_salvo"]:
+        st.markdown("---")
+        st.subheader("📄 Gerar Documento")
+
+        if st.button("📄 Gerar Termo de Declaração"):
+            caminho_modelo = "Documentos/termo_de_declaracao.docx"
+            if not os.path.exists(caminho_modelo):
+                st.error(f"❌ Arquivo de modelo não encontrado: {caminho_modelo}")
+            else:
+                doc = Document(caminho_modelo)
+
+                hora_atendimento = datetime.now().strftime("%H:%M")
+                data_formatada = data_termo.strftime("%d/%m/%Y")
+                qualificacao = f"{sexo}, CPF {cpf}, residente na {rua}, nº {numero}, bairro {bairro}, cidade de {cidade_assistido}, telefone {telefone}, nascido(a) em {datanascimento.strftime('%d/%m/%Y')}, do grupo étnico {grupo_etinico}"
+
+                for p in doc.paragraphs:
+                    p.text = p.text.replace("<<nomeassistido>>", Nome)
+                    p.text = p.text.replace("<<horaatendimento>>", data_formatada + " às " + hora_atendimento)
+                    p.text = p.text.replace("<<qualificacao>>", qualificacao)
+                    p.text = p.text.replace("<<declaracao>>", declaracao)
+
+                buffer = io.BytesIO()
+                doc.save(buffer)
+                buffer.seek(0)
+
+                nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
+
+                st.success("✅ Documento gerado com sucesso.")
+                st.download_button(
+                    label="📥 Baixar Termo",
+                    data=buffer,
+                    file_name=nome_arquivo,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
