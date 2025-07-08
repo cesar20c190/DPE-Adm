@@ -185,7 +185,7 @@ with abas[2]:
 
         if st.button("📄 Gerar Termo de Declaração"):
             # Caminhos
-            caminho_modelo = "Documentos/Termo de Declarações -  COMUM.docx"
+            caminho_modelo = "Documentos/termo_de_declaracao.docx"
             nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
             caminho_saida = f"documentos/{nome_arquivo}"
 
