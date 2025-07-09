@@ -109,10 +109,94 @@ if st.button("🔍 Consultar"):
                 st.markdown(f"**Matéria:** {termo['materia']}")
                 st.markdown(f"**Declaração:** _{termo['declaracao']}_")
 
+                # Lista de demandas com botões individuais de exclusão
                 demandas = grupo[["tipo", "descricao"]].dropna()
                 if not demandas.empty:
                     st.markdown("#### 💊 Demandas registradas:")
                     for i, row in demandas.iterrows():
-                        st.markdown(f"- **{row['tipo']}**: {row['descricao']}")
+                        col_d1, col_d2 = st.columns([5, 1])
+                        with col_d1:
+                            st.markdown(f"- **{row['tipo']}**: {row['descricao']}")
+                        with col_d2:
+                            if st.button("🗑️", key=f"excluir_demanda_{termo_id}_{i}"):
+                                con = sqlite3.connect(get_banco_path())
+                                cur = con.cursor()
+                                cur.execute("""
+                                    DELETE FROM demandas
+                                    WHERE id_termo = ? AND tipo = ? AND descricao = ?
+                                """, (termo_id, row["tipo"], row["descricao"]))
+                                con.commit()
+                                con.close()
+                                st.success("Demanda excluída com sucesso.")
+                                st.experimental_rerun()
                 else:
                     st.info("Nenhuma demanda registrada.")
+
+                st.markdown("---")
+                colb1, colb2 = st.columns(2)
+                with colb1:
+                    if st.button(f"📝 Editar termo #{termo_id}", key=f"editar_{termo_id}"):
+                        st.session_state["modo_edicao"] = True
+                        st.session_state["id_editar"] = termo_id
+                with colb2:
+                    if st.button(f"🗑️ Excluir termo #{termo_id}", key=f"excluir_termo_{termo_id}"):
+                        st.session_state["confirmar_exclusao"] = termo_id
+
+# --- Formulário de edição (fora do loop) ---
+if st.session_state.get("modo_edicao"):
+    termo_id = st.session_state["id_editar"]
+    st.markdown("---")
+    st.subheader(f"✏️ Editar Termo #{termo_id}")
+
+    caminho = get_banco_path()
+    con = sqlite3.connect(caminho)
+    df_termo = pd.read_sql_query("SELECT * FROM termos WHERE id = ?", con, params=[termo_id])
+    con.close()
+
+    if df_termo.empty:
+        st.error("❌ Termo não encontrado.")
+    else:
+        termo = df_termo.iloc[0]
+        with st.form(key="form_edicao"):
+            nome = st.text_input("Nome", value=termo["nome"])
+            cpf = st.text_input("CPF", value=termo["cpf"])
+            cidade = st.text_input("Cidade atendimento", value=termo["cidade_atendimento"])
+            telefone = st.text_input("Telefone", value=termo["telefone"])
+            materia = st.text_input("Matéria", value=termo["materia"])
+            declaracao = st.text_area("Declaração", value=termo["declaracao"])
+            salvar = st.form_submit_button("💾 Salvar alterações")
+            if salvar:
+                con = sqlite3.connect(caminho)
+                cur = con.cursor()
+                cur.execute("""
+                    UPDATE termos
+                    SET nome = ?, cpf = ?, cidade_atendimento = ?, telefone = ?, materia = ?, declaracao = ?
+                    WHERE id = ?
+                """, (nome, cpf, cidade, telefone, materia, declaracao, termo_id))
+                con.commit()
+                con.close()
+                st.success("✅ Termo atualizado com sucesso.")
+                del st.session_state["modo_edicao"]
+                del st.session_state["id_editar"]
+                st.experimental_rerun()
+
+# --- Confirmação de exclusão ---
+if st.session_state.get("confirmar_exclusao"):
+    id_excluir = st.session_state["confirmar_exclusao"]
+    st.warning(f"⚠️ Tem certeza que deseja excluir o termo #{id_excluir} (incluindo todas as demandas)?")
+    colc1, colc2 = st.columns(2)
+    with colc1:
+        if st.button("✅ Confirmar exclusão"):
+            con = sqlite3.connect(get_banco_path())
+            cur = con.cursor()
+            cur.execute("DELETE FROM demandas WHERE id_termo = ?", [id_excluir])
+            cur.execute("DELETE FROM termos WHERE id = ?", [id_excluir])
+            con.commit()
+            con.close()
+            st.success("✅ Termo e demandas excluídos com sucesso.")
+            del st.session_state["confirmar_exclusao"]
+            st.experimental_rerun()
+    with colc2:
+        if st.button("❌ Cancelar"):
+            del st.session_state["confirmar_exclusao"]
+            st.info("Exclusão cancelada.")
