@@ -163,38 +163,44 @@ with abas[2]:
         st.session_state["registro_salvo"] = False
 
     # Botão SALVAR REGISTRO no banco de dados
-    # Botão SALVAR REGISTRO no banco de dados
-    if st.button("💾 Salvar Registro no Banco de Dados"):
-        data_formatada = str(data_termo)
+if st.button("💾 Salvar Registro no Banco de Dados"):
+    data_formatada = str(data_termo)
 
-        conexao = sqlite3.connect("banco_termos.db")
-        cursor = conexao.cursor()
+    conexao = sqlite3.connect("banco_termos.db")
+    cursor = conexao.cursor()
 
-        # Cria a tabela se ainda não existir
+    # Inserir o termo principal
+    cursor.execute("""
+        INSERT INTO termos (
+            data_termo, regional, cidade_atendimento,
+            nome, cpf, rua, numero, bairro, cidade_assistido, telefone,
+            data_nascimento, sexo, grupo_etnico, renda_individual, renda_familiar,
+            materia, declaracao
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data_formatada, regional, cidade,
+        Nome, cpf, rua, numero, bairro, cidade_assistido, telefone,
+        datanascimento.strftime("%Y-%m-%d"), sexo, grupo_etinico,
+        renda_individual, renda_familiar, materia, declaracao
+    ))
+
+    id_termo = cursor.lastrowid  # Captura ID do termo salvo
+
+    # Inserir cada demanda
+    for demanda in st.session_state["demandas"]:
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS termos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome TEXT,
-                cpf TEXT,
-                data TEXT,
-                cidade TEXT,
-                declaracao TEXT
-            )
-        """)
+            INSERT INTO demandas (id_termo, tipo, descricao)
+            VALUES (?, ?, ?)
+        """, (id_termo, demanda["tipo"], demanda["descricao"]))
 
-        cursor.execute("""
-            INSERT INTO termos (nome, cpf, data, cidade, declaracao)
-            VALUES (?, ?, ?, ?, ?)
-        """, (Nome, cpf, data_formatada, cidade, declaracao))
+    conexao.commit()
+    conexao.close()
 
-        conexao.commit()
-        conexao.close()
-
-        st.success("✅ Dados salvos no banco com sucesso.")
-        st.session_state["registro_salvo"] = True  # ativa botão de gerar termo
+    st.success("✅ Registro completo salvo no banco de dados.")
+    st.session_state["registro_salvo"] = True
 
     # Botão de gerar documento só aparece após salvar no banco
-    if st.session_state["registro_salvo"]:
+if st.session_state["registro_salvo"]:
         st.markdown("---")
         st.subheader("📄 Gerar Documento")
 
