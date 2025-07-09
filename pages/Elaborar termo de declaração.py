@@ -234,3 +234,39 @@ if st.button("💾 Salvar Registro no Banco de Dados"):
                     file_name=nome_arquivo,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
+
+    # Botão de gerar documento só aparece após salvar no banco
+    if st.session_state["registro_salvo"]:
+        st.markdown("---")
+        st.subheader("📄 Gerar Documento")
+
+        if st.button("📄 Gerar Termo de Declaração"):
+            caminho_modelo = "Documentos/termo_de_declaracao.docx"
+            if not os.path.exists(caminho_modelo):
+                st.error(f"❌ Arquivo de modelo não encontrado: {caminho_modelo}")
+            else:
+                doc = Document(caminho_modelo)
+
+                hora_atendimento = datetime.now().strftime("%H:%M")
+                data_formatada = data_termo.strftime("%d/%m/%Y")
+                qualificacao = f"{sexo}, CPF {cpf}, residente na {rua}, nº {numero}, bairro {bairro}, cidade de {cidade_assistido}, telefone {telefone}, nascido(a) em {datanascimento.strftime('%d/%m/%Y')}, do grupo étnico {grupo_etinico}"
+
+                for p in doc.paragraphs:
+                    p.text = p.text.replace("<<nomeassistido>>", Nome)
+                    p.text = p.text.replace("<<horaatendimento>>", data_formatada + " às " + hora_atendimento)
+                    p.text = p.text.replace("<<qualificacao>>", qualificacao)
+                    p.text = p.text.replace("<<declaracao>>", declaracao)
+
+                buffer = io.BytesIO()
+                doc.save(buffer)
+                buffer.seek(0)
+
+                nome_arquivo = f"Termo_{Nome.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d%H%M%S')}.docx"
+
+                st.success("✅ Documento gerado com sucesso.")
+                st.download_button(
+                    label="📥 Baixar Termo",
+                    data=buffer,
+                    file_name=nome_arquivo,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
